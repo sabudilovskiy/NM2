@@ -59,7 +59,12 @@ void print_line(){
     std::cout << "------------------------\n";
 }
 
-double second_rang(double A, double B, double hMin, double hMax, double C, double yC, double eps, std::function<double(double, double)> f) {
+struct Result{
+    double value;
+    int code;
+};
+
+Result second_rang(double A, double B, double hMin, double hMax, double C, double yC, double eps, std::function<double(double, double)> f) {
     double cur_eps = 9999999;
     double h = (B - A) / 10;
     if (h < hMin) {
@@ -88,10 +93,10 @@ double second_rang(double A, double B, double hMin, double hMax, double C, doubl
     LOG(count_points);
     LOG(count_points_without_accuracity);
     print_line();
-    return y;
+    return {.value = y, .code = (cur_eps > eps)};
 }
 
-double third_rang(double A, double B, double hMin, double hMax, double C, double yC, double eps, std::function<double(double, double)> f){
+Result third_rang(double A, double B, double hMin, double hMax, double C, double yC, double eps, std::function<double(double, double)> f){
     double cur_eps = 9999999;
     double h = (B-A)/ 10;
     if (h < hMin){
@@ -119,15 +124,17 @@ double third_rang(double A, double B, double hMin, double hMax, double C, double
         count_points++;
     }
     print_line();
-    return y;
+    return {.value = y, .code = (cur_eps > eps)};
 }
 
 int main() {
     std::ifstream file("in.txt");
     std::function<double(double, double)> f = Fun1;
     auto&& [A, B, C, yC, hMin, hMax, eps] = input(file);
-    double y2 = second_rang(A, B, hMin, hMax, C, yC, eps, f);
-    double y3 = third_rang(A, B, hMin, hMax, C, yC, eps, f);
+    auto [y2, code2] = second_rang(A, B, hMin, hMax, C, yC, eps, f);
+    auto [y3, code3] = third_rang(A, B, hMin, hMax, C, yC, eps, f);
     LOG(y2);
+    LOG(code2);
     LOG(y3);
+    LOG(code3);
 }
