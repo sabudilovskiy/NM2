@@ -2,9 +2,10 @@
 #include <fstream>
 #include <cmath>
 #include <map>
+#include <vector>
 
 double Fun1(double x, double y){
-    return tan(x) + tan(y);
+    return x + y;
 }
 
 #define map_value(X) {#X, &X}
@@ -50,9 +51,16 @@ auto input(std::ifstream& in){
     return std::make_tuple(*A, *B, *C, *yC, *hMin, *hMax, *eps);
 }
 
-using value = decltype(input(std::declval<std::ifstream&>()));
-
 #define LOG(X) std::cout << #X << " " << X << "\n"
+
+#define LOG_RESULT(X)  \
+LOG(X.value);           \
+LOG(X.code);           \
+LOG(X.points);         \
+LOG(X.point_without_accuracity); \
+LOG(X.point_with_min); \
+LOG(X.point_with_max); \
+
 
 
 void print_line(){
@@ -62,20 +70,45 @@ void print_line(){
 struct Result{
     double value;
     int code;
+    size_t points;
+    size_t point_without_accuracity;
+    size_t point_with_min;
+    size_t point_with_max;
 };
+
+void step_h(size_t& count_points, size_t& point_with_min, size_t& point_with_max, double& h, double hMin, double hMax){
+    count_points++;
+    if (h == hMin){
+        point_with_min++;
+    }
+    else if (h == hMax){
+        point_with_max++;
+    }
+}
+
+void next_h(double cur_eps, double eps, double& h, double hMax, double hMin, size_t&count_points_without_accuracity){
+    if (cur_eps < eps) {
+        h = std::min(h*2, hMax);
+    }
+    else if (cur_eps > eps){
+        h = std::max(h/2, hMin);
+        count_points_without_accuracity++;
+    }
+}
 
 Result second_rang(double A, double B, double hMin, double hMax, double C, double yC, double eps, std::function<double(double, double)> f) {
     double cur_eps = 9999999;
     double h = (B - A) / 10;
-    if (h < hMin) {
-        h = hMin;
-    } else if (h > hMax) {
-        h = hMax;
-    }
-    size_t count_points = 0;
+    h = std::max(h, hMin);
+    h = std::min(h, hMax);
+    size_t count_points{};
+    size_t count_points_without_accuracity{};
+    size_t point_with_min{};
+    size_t point_with_max{};
     double x = C;
     double y = yC;
-    while (cur_eps > eps && x < B) {
+    while (x < B) {
+        step_h(count_points,point_with_min, point_with_max, h, hMin, hMax);
         double k1 = h * f(x, y);
         double k2 = h * f(x + h, y + k1);
         double prev_y = y;
@@ -87,28 +120,33 @@ Result second_rang(double A, double B, double hMin, double hMax, double C, doubl
         LOG(y);
         LOG(x);
         cur_eps = abs(y - prev_y);
-        count_points++;
+        next_h(cur_eps, eps, h, hMax, hMin, count_points_without_accuracity);
     }
-    size_t count_points_without_accuracity = count_points - 1;
+
     LOG(count_points);
     LOG(count_points_without_accuracity);
     print_line();
-    return {.value = y, .code = (cur_eps > eps)};
+    return {.value = y,
+            .code = ((double)count_points/count_points_without_accuracity  < 0.5),
+            .points = count_points,
+            .point_without_accuracity = count_points_without_accuracity,
+            .point_with_min = point_with_min,
+            .point_with_max = point_with_max};
 }
 
 Result third_rang(double A, double B, double hMin, double hMax, double C, double yC, double eps, std::function<double(double, double)> f){
     double cur_eps = 9999999;
     double h = (B-A)/ 10;
-    if (h < hMin){
-        h = hMin;
-    }
-    else if (h > hMax){
-        h = hMax;
-    }
-    size_t count_points = 0;
+    h = std::max(h, hMin);
+    h = std::min(h, hMax);
+    size_t count_points{};
+    size_t count_points_without_accuracity{};
+    size_t point_with_min{};
+    size_t point_with_max{};
     double x = C;
     double y = yC;
-    while (cur_eps > eps && x < B) {
+    while (x < B) {
+        step_h(count_points,point_with_min, point_with_max, h, hMin, hMax);
         double prev_y = y;
         double prev_x = x;
         double k1 = h * f(x, y);
@@ -121,20 +159,24 @@ Result third_rang(double A, double B, double hMin, double hMax, double C, double
         LOG(y);
         LOG(x);
         cur_eps = abs(y - prev_y);
-        count_points++;
+        next_h(cur_eps, eps, h, hMax, hMin, count_points_without_accuracity);
     }
     print_line();
-    return {.value = y, .code = (cur_eps > eps)};
+    return {.value = y,
+            .code = ((double)count_points/count_points_without_accuracity  < 0.5),
+            .points = count_points,
+            .point_without_accuracity = count_points_without_accuracity,
+            .point_with_min = point_with_min,
+            .point_with_max = point_with_max};
 }
 
 int main() {
     std::ifstream file("in.txt");
     std::function<double(double, double)> f = Fun1;
     auto&& [A, B, C, yC, hMin, hMax, eps] = input(file);
-    auto [y2, code2] = second_rang(A, B, hMin, hMax, C, yC, eps, f);
-    auto [y3, code3] = third_rang(A, B, hMin, hMax, C, yC, eps, f);
-    LOG(y2);
-    LOG(code2);
-    LOG(y3);
-    LOG(code3);
+    auto res2 = second_rang(A, B, hMin, hMax, C, yC, eps, f);
+    auto res3 = third_rang(A, B, hMin, hMax, C, yC, eps, f);
+    LOG_RESULT(res2);
+    print_line();
+    LOG_RESULT(res3);
 }
