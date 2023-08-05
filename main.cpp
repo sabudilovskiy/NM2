@@ -5,7 +5,7 @@
 #include <vector>
 
 double Fun1(double x, double y){
-    return x + y;
+    return tan(x) + tan(y);
 }
 
 #define map_value(X) {#X, &X}
@@ -62,6 +62,8 @@ LOG(X.point_with_min); \
 LOG(X.point_with_max); \
 
 
+using Function = double (*)(double, double);
+
 
 void print_line(){
     std::cout << "------------------------\n";
@@ -86,17 +88,49 @@ void step_h(size_t& count_points, size_t& point_with_min, size_t& point_with_max
     }
 }
 
-void next_h(double cur_eps, double eps, double& h, double hMax, double hMin, size_t&count_points_without_accuracity){
-    if (cur_eps < eps) {
-        h = std::min(h*2, hMax);
-    }
-    else if (cur_eps > eps){
-        h = std::max(h/2, hMin);
+template <size_t rank>
+void next_h(double cur_eps, double eps, double& h, double hMax, double hMin, size_t& count_points_without_accuracity){
+    h = pow(eps/cur_eps, rank + 1) * h;
+    h = std::min(h, hMax);
+    h = std::max(h, hMin);
+    if (cur_eps > eps){
         count_points_without_accuracity++;
     }
 }
 
-Result second_rang(double A, double B, double hMin, double hMax, double C, double yC, double eps, std::function<double(double, double)> f) {
+template <Function f>
+void step_x_y(double h, double& x, double& y, double& cur_eps){
+    double k1 = h * f(x, y);
+    double k2 = h * f(x + h, y + k1);
+    double prev_y = y;
+    double prev_x = x;
+    y = y + 0.5 * (k1 + k2);
+    x = x + h;
+    LOG(prev_y);
+    LOG(prev_x);
+    LOG(y);
+    LOG(x);
+    cur_eps = abs(y - prev_y);
+}
+
+template <Function f>
+void step_x_y_3(double h, double& x, double& y, double& cur_eps){
+    double prev_y = y;
+    double prev_x = x;
+    double k1 = h * f(x, y);
+    double k2 = h * f(x + h / 2, y + k1 / 2);
+    double k3 = h * f(x + h, y - k1 + 2 * k2);
+    y = y + (k1 + 4 * k2 + k3) / 6;
+    x = x + h;
+    LOG(prev_y);
+    LOG(prev_x);
+    LOG(y);
+    LOG(x);
+    cur_eps = abs(y - prev_y);
+}
+
+template <Function f>
+Result second_rang(double A, double B, double hMin, double hMax, double C, double yC, double eps) {
     double cur_eps = 9999999;
     double h = (B - A) / 10;
     h = std::max(h, hMin);
@@ -107,22 +141,14 @@ Result second_rang(double A, double B, double hMin, double hMax, double C, doubl
     size_t point_with_max{};
     double x = C;
     double y = yC;
+    step_h(count_points,point_with_min, point_with_max, h, hMin, hMax);
+    step_x_y<f>(h, x, y, cur_eps);
+    //second and next step
     while (x < B) {
         step_h(count_points,point_with_min, point_with_max, h, hMin, hMax);
-        double k1 = h * f(x, y);
-        double k2 = h * f(x + h, y + k1);
-        double prev_y = y;
-        double prev_x = x;
-        y = y + 0.5 * (k1 + k2);
-        x = x + h;
-        LOG(prev_y);
-        LOG(prev_x);
-        LOG(y);
-        LOG(x);
-        cur_eps = abs(y - prev_y);
-        next_h(cur_eps, eps, h, hMax, hMin, count_points_without_accuracity);
+        step_x_y<f>(h, x, y, cur_eps);
+        next_h<2>(cur_eps, eps, h, hMax, hMin, count_points_without_accuracity);
     }
-
     LOG(count_points);
     LOG(count_points_without_accuracity);
     print_line();
@@ -134,7 +160,9 @@ Result second_rang(double A, double B, double hMin, double hMax, double C, doubl
             .point_with_max = point_with_max};
 }
 
-Result third_rang(double A, double B, double hMin, double hMax, double C, double yC, double eps, std::function<double(double, double)> f){
+
+template <Function f>
+Result third_rang(double A, double B, double hMin, double hMax, double C, double yC, double eps){
     double cur_eps = 9999999;
     double h = (B-A)/ 10;
     h = std::max(h, hMin);
@@ -145,21 +173,12 @@ Result third_rang(double A, double B, double hMin, double hMax, double C, double
     size_t point_with_max{};
     double x = C;
     double y = yC;
+    step_h(count_points,point_with_min, point_with_max, h, hMin, hMax);
+    step_x_y_3<f>(h, x, y, cur_eps);
     while (x < B) {
         step_h(count_points,point_with_min, point_with_max, h, hMin, hMax);
-        double prev_y = y;
-        double prev_x = x;
-        double k1 = h * f(x, y);
-        double k2 = h * f(x + h / 2, y + k1 / 2);
-        double k3 = h * f(x + h, y - k1 + 2 * k2);
-        y = y + (k1 + 4 * k2 + k3) / 6;
-        x = x + h;
-        LOG(prev_y);
-        LOG(prev_x);
-        LOG(y);
-        LOG(x);
-        cur_eps = abs(y - prev_y);
-        next_h(cur_eps, eps, h, hMax, hMin, count_points_without_accuracity);
+        step_x_y_3<f>(h, x, y, cur_eps);
+        next_h<3>(cur_eps, eps, h, hMax, hMin, count_points_without_accuracity);
     }
     print_line();
     return {.value = y,
@@ -172,10 +191,9 @@ Result third_rang(double A, double B, double hMin, double hMax, double C, double
 
 int main() {
     std::ifstream file("in.txt");
-    std::function<double(double, double)> f = Fun1;
     auto&& [A, B, C, yC, hMin, hMax, eps] = input(file);
-    auto res2 = second_rang(A, B, hMin, hMax, C, yC, eps, f);
-    auto res3 = third_rang(A, B, hMin, hMax, C, yC, eps, f);
+    auto res2 = second_rang<Fun1>(A, B, hMin, hMax, C, yC, eps);
+    auto res3 = third_rang<Fun1>(A, B, hMin, hMax, C, yC, eps);
     LOG_RESULT(res2);
     print_line();
     LOG_RESULT(res3);
